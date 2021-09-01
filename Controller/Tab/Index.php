@@ -19,11 +19,12 @@ class Index extends \ADM\QuickDevBar\Controller\Index
             } else {
                 $output = 'Cannot found block: '. $blockName;
             }
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $output = $e->getMessage();
         }
 
         $resultRaw = $this->_resultRawFactory->create();
-        return $resultRaw->setContents($output);
+
+        return $resultRaw->setContents($output)->setHeader('Content-Type', 'text/html');
     }
 }

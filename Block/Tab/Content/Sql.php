@@ -2,6 +2,8 @@
 
 namespace ADM\QuickDevBar\Block\Tab\Content;
 
+use Magento\Framework\DB\Profiler;
+
 class Sql extends \ADM\QuickDevBar\Block\Tab\Panel
 {
 
@@ -164,4 +166,8 @@ class Sql extends \ADM\QuickDevBar\Block\Tab\Panel
         return number_format(round(1000 * $time, $decimals), $decimals) . 'ms';
     }
 
+    public function hasProfiler()
+    {
+        return $this->_resource->getConnection()->getProfiler() instanceof \Zend_Db_Profiler;
+    }
 }
