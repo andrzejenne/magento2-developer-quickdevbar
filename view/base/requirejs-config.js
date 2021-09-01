@@ -18,6 +18,9 @@ var config = {
         },
         'tablesorter': {
             deps: ['jquery']
+        },
+        'quickDevBarSql': {
+            deps: ['jquery']
         }
     }
 };

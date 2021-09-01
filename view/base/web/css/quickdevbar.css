@@ -412,3 +412,5 @@ td.sqlinfo {
 /*.full-height > .qdb-panel { height: 100%; margin-top: 20px; }*/
 
 .qdb-panel .qdb-panel { max-height: 600px; overflow-y: auto; }
+
+#qdb-bar .nowrap { white-space: nowrap; }

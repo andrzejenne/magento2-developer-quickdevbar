@@ -1,8 +1,11 @@
 <?php
 /** @var ADM\QuickDevBar\Block\Tab\Content\Sql $block */
 if ($block->hasProfiler()): ?>
-    <div id="sql_queries" style="max-height: 600px; overflow:auto;">
+    <div id="sql_stats">
     </div>
+    <div id="sql_queries" style="max-height: 500px; overflow:auto; box-shadow: 0 0 5px rgba(0,0,0,.5) inset;">
+    </div>
+    <br/>
     <div class="control">
         <label for="sql_profiles">Request</label>
         <select id="sql_profiles" name="sql-profile">

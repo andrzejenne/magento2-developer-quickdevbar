@@ -1,11 +1,29 @@
 <?php
 namespace ADM\QuickDevBar\Controller\Sql;
 
+use ADM\QuickDevBar\Model\Storage;
+
 class Index extends \ADM\QuickDevBar\Controller\Index
 {
+    /**
+     * @var Storage
+     */
+    private $storage;
+
+    public function __construct(
+        \Magento\Framework\App\Action\Context $context,
+        \ADM\QuickDevBar\Helper\Data $qdbHelper,
+        \Magento\Framework\Controller\Result\RawFactory $resultRawFactory,
+        \Magento\Framework\View\LayoutFactory $layoutFactory,
+        Storage $storage
+    ) {
+        parent::__construct($context, $qdbHelper, $resultRawFactory, $layoutFactory);
+        $this->storage = $storage;
+    }
+
     public function execute()
     {
-        $jsons = glob('/tmp/*.head.json');
+        $jsons = $this->storage->getList();
         $files = [];
         foreach ($jsons as $json) {
             $head = \json_decode(file_get_contents($json), true);

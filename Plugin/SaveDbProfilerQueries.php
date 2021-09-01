@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace ADM\QuickDevBar\Plugin;
 
 use ADM\QuickDevBar\Helper\Data;
+use ADM\QuickDevBar\Model\Storage;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\AppInterface;
 
@@ -22,13 +23,24 @@ class SaveDbProfilerQueries
     private $data;
 
     /**
+     * @var Storage
+     */
+    private $storage;
+
+    /**
      * @param ResourceConnection $resourceConnection
      * @param Data               $data
+     * @param Storage            $storage
      */
-    public function __construct(ResourceConnection $resourceConnection, Data $data)
+    public function __construct(
+        ResourceConnection $resourceConnection,
+        Data $data,
+        Storage $storage
+    )
     {
         $this->resourceConnection = $resourceConnection;
         $this->data = $data;
+        $this->storage = $storage;
     }
 
     /**
@@ -71,6 +83,7 @@ class SaveDbProfilerQueries
             $head = [
                 'request' => $_SERVER['REQUEST_URI'],
                 'datetime' => date(\DateTimeInterface::ATOM),
+                'numQueries' => $profiler->getTotalNumQueries(),
             ];
             $data = [
                 'server' => [
@@ -89,6 +102,7 @@ class SaveDbProfilerQueries
                         'delete' => $profiler->getTotalNumQueries(\Zend_Db_Profiler::DELETE),
                         'transaction' => $profiler->getTotalNumQueries(\Zend_Db_Profiler::TRANSACTION),
                     ],
+                    'totalElapsedSecs' => $profiler->getTotalElapsedSecs(),
                 ],
                 'list' => [ ]
             ];
@@ -105,10 +119,10 @@ class SaveDbProfilerQueries
                 ];
             }
 
-            $name = time();
+            $name = (string)time();
 
-            file_put_contents('/tmp/' . $name . '.data.json', \json_encode($data));
-            file_put_contents('/tmp/' . $name . '.head.json', \json_encode($head));
+            $this->storage->save($name, $data, 'data');
+            $this->storage->save($name, $head, 'head');
         }
     }
 
