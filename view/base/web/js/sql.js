@@ -6,14 +6,18 @@ define([
     "tablesorter",
     'mage/cookies',
 ], function ($) {
+    let profile;
+
     const selectEl = $('#sql_profiles');
     const statsContainerEl = $('#sql_stats');
     const tableContainerEl = $('#sql_queries');
+    const selectAggregationsEl = $('#sql_aggregations');
     const queryHighlight = [
         [/\b(SET|AS|ASC|COUNT|DESC|IN|LIKE|DISTINCT|INTO|VALUES|LIMIT)\b/, '<span class="sqlword">$1</span>'],
-        [/\b(UNION ALL|DESCRIBE|SHOW|connect|begin|commit)\b/, '<br/><span class="sqlother">$1</span>'],
-        [/\b(UPDATE|SELECT|FROM|WHERE|LEFT JOIN|INNER JOIN|RIGHT JOIN|ORDER BY|GROUP BY|DELETE|INSERT)\b/, '<br/><span class="sqlmain">$1</span>']
+        [/\b(UNION ALL|DESCRIBE|SHOW|connect|begin|commit)\b/, '<span class="sqlother">$1</span>'],
+        [/\b(UPDATE|SELECT|FROM|WHERE|LEFT JOIN|INNER JOIN|RIGHT JOIN|ORDER BY|GROUP BY|DELETE|INSERT)\b/, '<span class="sqlmain">$1</span>']
     ];
+
     const renderers = {
         index: function(value, row, index) {
             return index + 1;
@@ -29,7 +33,7 @@ define([
             return JSON.stringify(val);
         },
         duration: function(value) {
-            return '<span class="nowrap">' + (value * 1000).toFixed(2) + ' ms' + '</span>';
+            return (value * 1000).toFixed(2);
         },
         queryType: function(value) {
             switch(value) {
@@ -71,7 +75,7 @@ define([
             renderer: renderers.json,
         },
         elapsed: {
-            label: 'Time',
+            label: 'Time [ms]',
             sorter: 'digit',
             style: {
                 width: 100,
@@ -91,7 +95,42 @@ define([
             sorter: 'text',
             renderer: renderers.queryType,
         },
+        count: {
+            label: 'Count',
+            sorter: 'digit',
+        },
+        totalElapsed: {
+            label: 'Total time [ms]',
+            renderer: renderers.duration,
+        }
     };
+
+    const dataAggregations = {
+        default: {
+            label: 'Default',
+        },
+        queryAndArgs: {
+            label: 'Query and Arguments',
+            transform: function(data) {
+                const aggregated = [];
+                const queriesArgsMap = [];
+                data.list.forEach(function(profile, index){
+                    const hash = profile.query + JSON.stringify(profile.params);
+                    if (!queriesArgsMap[hash]) {
+                        queriesArgsMap[hash] = {...profile};
+                        aggregated.push(queriesArgsMap[hash]);
+                        queriesArgsMap[hash].count = 1;
+                        queriesArgsMap[hash].totalElapsed = profile.elapsed;
+                    } else {
+                        queriesArgsMap[hash].count++;
+                        queriesArgsMap[hash].totalElapsed += profile.elapsed;
+                    }
+                });
+
+                return aggregated;
+            }
+        }
+    }
 
     const tableViews = {
         slim: [
@@ -108,12 +147,28 @@ define([
             'started',
             'type',
         ],
+        aggregated: {
+            default: [
+                'query',
+                'count',
+                'totalElapsed'
+            ],
+            slim: [
+                'query',
+                'count',
+                'totalElapsed'
+            ]
+        }
     };
 
-    function Profile(data, view = 'default', views = tableViews, columns = tableColumns) {
+    function Profile(data, view = 'default', aggregation = 'default', views = tableViews, columns = tableColumns) {
         this.view = view;
         this.views = views;
         this.columns = columns;
+        this.aggregation = aggregation;
+
+        let longest = {};
+        let containers;
 
         const self = this;
 
@@ -122,7 +177,11 @@ define([
         }
 
         function getView(view = self.view) {
-            return self.views[view] ?? self.views['default'];
+            if (self.aggregation === 'default') {
+                return self.views[view] ?? self.views.default;
+            }
+
+            return self.views.aggregated[view] ?? self.views.default;
         }
 
         function getRenderer(field) {
@@ -138,8 +197,11 @@ define([
         }
 
         function computeStats() {
-            data.list.forEach(function(row) {
-
+            longest = {};
+            data.list.forEach((profile) => {
+                if (!longest.elapsed || longest.elapsed < profile.elapsed) {
+                    longest = profile;
+                }
             });
         }
 
@@ -180,14 +242,7 @@ define([
             };
         }
 
-
-        // <tr>
-        //     <th>Longest</th>
-        //     <td>
-        //         <?php echo $block->formatSql($block->getLongestQuery()); ?>
-        //     </td>
-        // </tr>
-        this.renderStatsTo = function(el) {
+        function renderStatsTo(el) {
             const tableEl = $('<table/>').addClass('qdn_table_2col');
             const stats = getStats();
 
@@ -203,7 +258,7 @@ define([
                 </td>
             </tr>
             <tr>
-                <th></th>
+                <th>Longest</th>
                 <td>
                     ${stats.queries}
                 </td>
@@ -211,15 +266,20 @@ define([
             <tr>
                 <th></th>
                 <td>
-                    <span>(${stats.longestQueryTime})</span>
+                    <span>(${renderers.duration(longest.elapsed)})</span>
+                </td>
+            </tr>
+            <tr>
+                <th></th>
+                <td>
+                    ${renderers.query(longest.query)}
                 </td>
             </tr>
             `);
-
             el.empty().append(tableEl);
         }
 
-        this.renderTableTo = function(el) {
+        function renderTableTo(el) {
             const tableEl = $('<table/>').addClass('qdn_table striped filterable sortable tablesorter grade');
             const headEl = $('<thead/>');
             const headRowEl = $('<tr />').appendTo(headEl);
@@ -243,7 +303,7 @@ define([
                 }
             });
 
-            data.list.forEach(function(dataRow, index){
+            getDataForDisplay().forEach(function(dataRow, index){
                 renderRow(bodyEl, dataRow, index);
             });
 
@@ -252,6 +312,47 @@ define([
 
             tableEl.tablesorter();
         }
+
+        function getDataForDisplay() {
+            if (self.aggregation === 'default') {
+                return data.list;
+            }
+
+            return data.aggregated;
+        }
+
+        function aggregate() {
+            const aggregation = dataAggregations[self.aggregation];
+            if (aggregation.transform) {
+                data.aggregated = aggregation.transform(data);
+            }
+        }
+
+        function beforeRender() {
+            computeStats();
+            aggregate();
+        }
+
+        this.renderTo = function(statsEl, tableEl) {
+            beforeRender();
+            renderStatsTo(statsEl);
+            renderTableTo(tableEl);
+            containers = [statsEl, tableEl];
+        }
+
+        this.refresh = function() {
+            this.renderTo(containers[0], containers[1]);
+        }
+
+        this.setAggregation = function(aggregation) {
+            this.aggregation = aggregation;
+            this.refresh();
+        }
+
+    }
+
+    function getAggregation() {
+        return selectAggregationsEl.val();
     }
 
     function loadSqlProfilesList() {
@@ -277,13 +378,20 @@ define([
         $.get({
             url: '/quickdevbar/sql/view/?isAjax=1&json=' + name,
             success: function(data) {
-                const profile = new Profile(data, 'slim');
+                profile = new Profile(data, 'slim', getAggregation());
                 // @todo - view change
-                profile.renderStatsTo(statsContainerEl);
-                profile.renderTableTo(tableContainerEl);
+                profile.renderTo(statsContainerEl, tableContainerEl);
                 console.info(data);
             },
         });
+    }
+
+    function renderAggregations() {
+        for (const prop in dataAggregations) {
+            selectAggregationsEl.append(`<option value="${prop}">${dataAggregations[prop].label}</option>`);
+        }
+
+        selectAggregationsEl.val('default');
     }
 
     function loadCurrentSqlProfile() {
@@ -306,5 +414,13 @@ define([
         loadSqlProfile($(this).val());
     });
 
+    selectAggregationsEl.change(function() {
+        console.info('aggregation changed to', $(this).val());
+        profile.setAggregation(
+            getAggregation()
+        );
+    });
+
     loadSqlProfilesList();
+    renderAggregations();
 });

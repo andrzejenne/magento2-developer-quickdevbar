@@ -12,6 +12,12 @@ if ($block->hasProfiler()): ?>
         </select>
     </div>
     <br/>
+    <div class="control">
+        <label for="sql_aggregations">Aggregation</label>
+        <select id="sql_aggregations" name="sql-aggregation">
+        </select>
+    </div>
+    <br/>
     <button id="clear" type="button" class="qdb-action">Clear all Requests</button>
     <script type="text/javascript">
         require([
